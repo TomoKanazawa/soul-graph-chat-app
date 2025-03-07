@@ -1,24 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SoulGraph Chat App
+
+This is a Next.js chat application that connects to the SoulGraph Flask backend for testing purposes.
+
+## Features
+
+- Simple chat interface
+- Connection status indicator
+- Fixed test user ID (no login required)
+- Responsive design
+- Streaming mode for real-time responses
+
+## Prerequisites
+
+- Node.js 18+ and npm
+- SoulGraph Flask backend running at http://localhost:8000
 
 ## Getting Started
 
-First, run the development server:
+1. Make sure the SoulGraph Flask backend is running:
+
+```bash
+cd ../soulgraph_production
+flask run --debug
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How It Works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- The chat app connects to the SoulGraph Flask API running at http://localhost:8000
+- All messages are sent with a fixed test user ID
+- The app creates a new thread for the first message and then continues the conversation in that thread
+- The connection status indicator shows whether the API is available
+- Streaming mode allows responses to appear gradually as they're generated
+- You can toggle streaming mode on/off with the checkbox below the input field
+
+## API Integration
+
+The app integrates with the following SoulGraph API endpoints:
+
+- `/v0/inference` - For sending and receiving chat messages
+- `/v0/health` - For checking API availability
+
+## Technologies Used
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- Axios
 
 ## Learn More
 
