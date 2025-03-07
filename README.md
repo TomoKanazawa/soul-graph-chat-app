@@ -1,60 +1,75 @@
-# SoulGraph Chat App
+# SoulGraph Chat App - Internal Testing Tool
 
-This is a Next.js chat application that connects to the SoulGraph Flask backend for testing purposes.
+This is a simple chat application for internal testing of the SoulGraph backend. It provides a straightforward interface to interact with and test the SoulGraph API during development.
 
-## Features
+## Purpose
 
-- Simple chat interface
-- Connection status indicator
-- Fixed test user ID (no login required)
-- Responsive design
-- Streaming mode for real-time responses
+- Internal testing tool for SoulGraph development
+- Allows quick verification of API functionality
+- Provides a simple UI for testing conversation flows
+- Helps debug streaming responses and API behavior
 
 ## Prerequisites
 
 - Node.js 18+ and npm
-- SoulGraph Flask backend running at http://localhost:8000
+- SoulGraph Flask backend
 
-## Getting Started
+## Quick Start Guide
 
-1. Make sure the SoulGraph Flask backend is running:
+### 1. Start the SoulGraph Flask Backend
 
 ```bash
-cd ../soulgraph_production
+# Navigate to the SoulGraph backend directory
+cd ../soulgraph_production  # or your backend directory
+
+# Run the Flask server with debug mode enabled
 flask run --debug
 ```
 
-2. Install dependencies:
+**Note:** The backend is configured to run on port 8000 by default (set via environment variable).
+
+### 2. Set Up and Run the Chat App
 
 ```bash
+# Navigate to the chat-app directory (if not already there)
+cd chat-app
+
+# Install dependencies (only needed first time or when dependencies change)
 npm install
-```
 
-3. Run the development server:
-
-```bash
+# Run the development server
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Access the Chat Interface
 
-## How It Works
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-- The chat app connects to the SoulGraph Flask API running at http://localhost:8000
-- All messages are sent with a fixed test user ID
-- The app creates a new thread for the first message and then continues the conversation in that thread
-- The connection status indicator shows whether the API is available
-- Streaming mode allows responses to appear gradually as they're generated
-- You can toggle streaming mode on/off with the checkbox below the input field
+## Key Features
+
+- **Connection Status Indicator**: Shows whether the API is available
+- **Fixed Test User ID**: No login required for testing
+- **Streaming Mode**: Toggle to see responses appear in real-time
+- **Simple Interface**: Focus on testing functionality without distractions
+
+## Configuration
+
+The app connects to the SoulGraph API running at http://localhost:8000 by default. This is configured in the `.env.local` file.
 
 ## API Integration
 
-The app integrates with the following SoulGraph API endpoints:
+The app integrates with these SoulGraph API endpoints:
 
 - `/v0/inference` - For sending and receiving chat messages
 - `/v0/health` - For checking API availability
 
-## Technologies Used
+## Troubleshooting
+
+- **API Connection Issues**: Ensure the Flask backend is running on port 8000
+- **Missing Responses**: Check the Flask server logs for errors
+- **Streaming Not Working**: Verify streaming is enabled on both frontend and backend
+
+## Technologies
 
 - Next.js
 - React
