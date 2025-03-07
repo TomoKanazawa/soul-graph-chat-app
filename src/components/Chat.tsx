@@ -11,7 +11,6 @@ export default function Chat() {
   const [error, setError] = useState<string | null>(null);
   const [useStreaming, setUseStreaming] = useState<boolean>(true);
   const [streamingStatus, setStreamingStatus] = useState<string>('');
-  const [simulateStreaming, setSimulateStreaming] = useState<boolean>(true);
   const [debugMode, setDebugMode] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
@@ -71,58 +70,6 @@ export default function Chat() {
     typingTimerRef.current = setTimeout(() => {
       setIsTyping(false);
     }, 1000);
-  };
-
-  // Simulate streaming by gradually revealing the response
-  const simulateStreamingResponse = (response: string, threadId?: string) => {
-    let currentIndex = 0;
-    const fullResponse = response;
-    const chunkSize = Math.max(1, Math.floor(fullResponse.length / 20)); // Divide into ~20 chunks
-    
-    // Add a placeholder assistant message
-    const placeholderMessage: Message = {
-      role: 'assistant',
-      content: '',
-      timestamp: new Date()
-    };
-    
-    setMessages(prev => [...prev, placeholderMessage]);
-    setIsTyping(true);
-    
-    // Function to update the message with the next chunk
-    const updateWithNextChunk = () => {
-      if (currentIndex < fullResponse.length) {
-        const nextIndex = Math.min(currentIndex + chunkSize, fullResponse.length);
-        const currentText = fullResponse.substring(0, nextIndex);
-        currentIndex = nextIndex;
-        
-        // Update the assistant message with the current text
-        setMessages(prev => {
-          const updated = [...prev];
-          if (updated.length > 0) {
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              content: currentText
-            };
-          }
-          return updated;
-        });
-        
-        // Show typing indicator
-        showTypingIndicator();
-        
-        // Continue updating
-        setTimeout(updateWithNextChunk, 50);
-      } else {
-        // Complete
-        setIsLoading(false);
-        setIsTyping(false);
-        setStreamingStatus('Complete');
-      }
-    };
-    
-    // Start the simulation
-    updateWithNextChunk();
   };
 
   // Handle streaming chunks from the API
@@ -240,20 +187,15 @@ export default function Chat() {
           setThreadId(response.thread_id);
         }
         
-        // If simulating streaming is enabled, simulate streaming
-        if (simulateStreaming) {
-          simulateStreamingResponse(response.response, response.thread_id);
-        } else {
-          // Add assistant response to chat
-          const assistantMessage: Message = {
-            role: 'assistant',
-            content: response.response,
-            timestamp: new Date()
-          };
-          
-          setMessages(prev => [...prev, assistantMessage]);
-          setIsLoading(false);
-        }
+        // Add assistant response to chat
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: response.response,
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, assistantMessage]);
+        setIsLoading(false);
       }
     } catch (err) {
       console.error('Error in chat:', err);
@@ -261,7 +203,7 @@ export default function Chat() {
       setIsLoading(false);
       
       // Remove the placeholder message if using streaming
-      if (useStreaming || simulateStreaming) {
+      if (useStreaming) {
         setMessages(prev => {
           if (prev.length > 0 && prev[prev.length - 1].role === 'assistant' && prev[prev.length - 1].content === '') {
             return prev.slice(0, -1);
@@ -318,25 +260,6 @@ export default function Chat() {
               ></label>
             </div>
           </div>
-          
-          {!useStreaming && (
-            <div className="flex items-center justify-between">
-              <label className="font-medium">Simulate Streaming</label>
-              <div className="relative inline-block w-10 mr-2 align-middle select-none">
-                <input 
-                  type="checkbox" 
-                  checked={simulateStreaming}
-                  onChange={() => setSimulateStreaming(!simulateStreaming)}
-                  className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                />
-                <label 
-                  className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${
-                    simulateStreaming ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-700'
-                  }`}
-                ></label>
-              </div>
-            </div>
-          )}
           
           <div className="flex items-center justify-between">
             <label className="font-medium">Debug Mode</label>
@@ -422,7 +345,7 @@ export default function Chat() {
             </div>
           ))
         )}
-        {isLoading && !useStreaming && !simulateStreaming && (
+        {isLoading && !useStreaming && (
           <div className="flex justify-start">
             <div className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-2xl px-4 py-3 shadow-sm">
               <div className="flex space-x-2">
@@ -433,7 +356,7 @@ export default function Chat() {
             </div>
           </div>
         )}
-        {streamingStatus && (useStreaming || simulateStreaming) && (
+        {streamingStatus && (useStreaming) && (
           <div className="flex justify-center">
             <div className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 rounded-full px-4 py-1.5 text-xs font-medium">
               <p>{streamingStatus}</p>
