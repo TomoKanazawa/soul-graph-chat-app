@@ -9,6 +9,9 @@ export interface ChatThread {
   id?: string;
   messages: Message[];
   title?: string;
+  created_at?: string;
+  updated_at?: string;
+  metadata?: any;
 }
 
 export type ModelType = 'soulgraph' | 'openai';

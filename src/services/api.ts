@@ -1,9 +1,10 @@
 import axios from 'axios';
-import { InferenceRequest, InferenceResponse, ModelType } from '@/types';
+import { InferenceRequest, InferenceResponse, ModelType, ChatThread } from '@/types';
 
 // API endpoints
 const SOULGRAPH_API_URL = '/api/soulgraph';
 const OPENAI_API_URL = '/api/openai';
+const THREADS_API_URL = '/api/threads';
 const TEST_USER_ID = 'test-user-123'; // Fixed test user ID
 
 export const api = {
@@ -161,6 +162,35 @@ export const api = {
     } catch (error) {
       console.error('Health check failed:', error);
       return false;
+    }
+  },
+
+  // Get all chat threads for a user
+  getThreads: async (limit: number = 50, offset: number = 0): Promise<ChatThread[]> => {
+    try {
+      const response = await axios.get<{ threads: ChatThread[] }>(THREADS_API_URL, {
+        params: {
+          user_id: TEST_USER_ID,
+          limit,
+          offset
+        }
+      });
+      return response.data.threads;
+    } catch (error) {
+      console.error('Error fetching threads:', error);
+      return [];
+    }
+  },
+  
+  // Get a specific thread by ID
+  getThread: async (threadId: string): Promise<ChatThread | null> => {
+    try {
+      console.log(`Fetching thread with ID: ${threadId}`);
+      const response = await axios.get<ChatThread>(`${THREADS_API_URL}/${threadId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching thread:', error);
+      throw error;
     }
   }
 }; 

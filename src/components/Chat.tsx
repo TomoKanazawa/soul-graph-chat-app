@@ -3,11 +3,15 @@ import { Message, ChatThread, ModelType } from '@/types';
 import { api } from '@/services/api';
 import { FiSend, FiSettings, FiInfo, FiCode, FiX, FiMessageCircle } from 'react-icons/fi';
 
-export default function Chat() {
+interface ChatProps {
+  threadId?: string;
+  onThreadCreated?: (threadId: string) => void;
+}
+
+export default function Chat({ threadId, onThreadCreated }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [useStreaming, setUseStreaming] = useState<boolean>(true);
   const [streamingStatus, setStreamingStatus] = useState<string>('');
@@ -50,6 +54,16 @@ export default function Chat() {
     };
   }, []);
 
+  // Load thread messages when threadId changes
+  useEffect(() => {
+    if (threadId) {
+      loadThreadMessages(threadId);
+    } else {
+      // Clear messages for a new chat
+      setMessages([]);
+    }
+  }, [threadId]);
+
   // Add debug info
   const addDebugInfo = (info: string) => {
     if (debugMode) {
@@ -72,76 +86,99 @@ export default function Chat() {
     }, 1000);
   };
 
-  // Handle streaming chunks from the API
+  // Handle streaming chunks
   const handleStreamChunk = (chunk: string, isComplete: boolean, newThreadId?: string, rawChunk?: string) => {
-    // Update thread ID if it's a new thread
-    if (newThreadId && !threadId) {
-      addDebugInfo(`Received thread ID: ${newThreadId}`);
-      setThreadId(newThreadId);
+    // Add debug info
+    if (debugMode && rawChunk) {
+      addDebugInfo(`Received chunk: ${rawChunk}`);
     }
     
     // Update chunk count
     setChunkCount(prev => prev + 1);
+    setReceivedChunks(prev => [...prev, chunk]);
     
-    // Log the raw chunk if available
-    if (rawChunk) {
-      addDebugInfo(`Received raw chunk: "${rawChunk}"`);
-      setReceivedChunks(prev => [...prev, rawChunk]);
-      
-      // Show typing indicator for each new chunk
-      showTypingIndicator();
+    // If this is the first chunk with a thread ID and we don't have one yet
+    if (newThreadId && !threadId && onThreadCreated) {
+      onThreadCreated(newThreadId);
     }
     
-    // Update the assistant message with the latest chunk
-    if (chunk) {
-      addDebugInfo(`Received chunk (${chunk.length} chars), isComplete: ${isComplete}`);
-      
-      // Update the current response in the ref
-      currentResponseRef.current += chunk;
-      
-      // Update the message immediately - use a direct state update to ensure it renders
+    // Update the current response
+    currentResponseRef.current += chunk;
+    
+    // If this is the first chunk, create a new assistant message
+    if (!assistantMessageRef.current) {
+      const newAssistantMessage: Message = {
+        role: 'assistant',
+        content: chunk,
+        timestamp: new Date()
+      };
+      assistantMessageRef.current = newAssistantMessage;
+      setMessages(prev => [...prev, newAssistantMessage]);
+    } else {
+      // Otherwise update the existing message
       setMessages(prev => {
         const updated = [...prev];
-        // Find the last assistant message
-        const lastAssistantIndex = updated.length - 1;
-        
-        if (lastAssistantIndex >= 0 && updated[lastAssistantIndex].role === 'assistant') {
-          // Update the existing assistant message with the complete current response
-          updated[lastAssistantIndex] = {
-            ...updated[lastAssistantIndex],
-            content: currentResponseRef.current,
-            timestamp: new Date() // Update timestamp to force re-render
+        const lastIndex = updated.length - 1;
+        if (lastIndex >= 0 && updated[lastIndex].role === 'assistant') {
+          updated[lastIndex] = {
+            ...updated[lastIndex],
+            content: currentResponseRef.current
           };
-        } else {
-          // Add a new assistant message
-          updated.push({
-            id: Date.now().toString(),
-            role: 'assistant',
-            content: currentResponseRef.current,
-            timestamp: new Date()
-          });
         }
         return updated;
       });
-      
-      // Force a re-render by updating the render key
-      setRenderKey(prev => prev + 1);
-      
-      // Scroll to bottom with each chunk
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 0);
     }
     
-    // Update streaming status with a more user-friendly message
-    setStreamingStatus(isComplete ? 'Complete' : `Receiving response...`);
+    // Update streaming status
+    setStreamingStatus(isComplete ? 'Complete' : `Receiving (${chunkCount} chunks)`);
     
-    // If complete, mark as no longer loading and hide typing indicator
+    // Reset typing state when complete
     if (isComplete) {
       addDebugInfo('Stream complete');
       setIsLoading(false);
       setIsTyping(false);
       assistantMessageRef.current = null;
+    }
+  };
+
+  // Load messages for a specific thread
+  const loadThreadMessages = async (threadId: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      console.log(`Loading thread messages for thread ID: ${threadId}`);
+      
+      // For test threads, use mock data
+      if (threadId.startsWith('test-')) {
+        console.log('Using mock data for test thread');
+        const mockMessages: Message[] = [
+          { role: 'system', content: 'You are a helpful assistant.' },
+          { role: 'user', content: 'Hello, how are you?' },
+          { role: 'assistant', content: 'I\'m doing well, thank you for asking! How can I help you today?' }
+        ];
+        setMessages(mockMessages);
+        console.log(`Loaded ${mockMessages.length} mock messages`);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Fetch thread using the API service
+      const threadData = await api.getThread(threadId);
+      
+      if (threadData && threadData.messages && Array.isArray(threadData.messages)) {
+        // Set messages from the thread
+        setMessages(threadData.messages);
+        console.log(`Loaded ${threadData.messages.length} messages from thread`);
+      } else {
+        console.error('No messages array in response:', threadData);
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error('Error loading thread:', err);
+      setError('Failed to load chat thread');
+      setMessages([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -183,8 +220,8 @@ export default function Chat() {
         const response = await api.sendMessage(input, threadId, selectedModel);
         
         // Update thread ID if it's a new thread
-        if (!threadId && response.thread_id) {
-          setThreadId(response.thread_id);
+        if (!threadId && response.thread_id && onThreadCreated) {
+          onThreadCreated(response.thread_id);
         }
         
         // Add assistant response to chat
