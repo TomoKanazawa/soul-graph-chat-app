@@ -192,5 +192,21 @@ export const api = {
       console.error('Error fetching thread:', error);
       throw error;
     }
+  },
+  
+  // Delete a specific thread by ID
+  deleteThread: async (threadId: string): Promise<boolean> => {
+    try {
+      console.log(`Deleting thread with ID: ${threadId}`);
+      const response = await axios.delete(`${THREADS_API_URL}/${threadId}`, {
+        params: {
+          user_id: TEST_USER_ID
+        }
+      });
+      return response.status === 200;
+    } catch (error) {
+      console.error('Error deleting thread:', error);
+      throw error;
+    }
   }
 }; 

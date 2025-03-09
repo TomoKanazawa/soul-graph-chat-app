@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiPlus, FiMessageSquare, FiTrash2, FiLoader } from 'react-icons/fi';
+import { FiPlus, FiMessageSquare, FiTrash2, FiLoader, FiAlertCircle } from 'react-icons/fi';
 import { ChatThread } from '@/types';
 import { api } from '@/services/api';
 
@@ -13,6 +13,7 @@ export default function Sidebar({ onNewChat, onSelectThread, currentThreadId }: 
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
 
   // Fetch threads on component mount
   useEffect(() => {
@@ -84,6 +85,40 @@ export default function Sidebar({ onNewChat, onSelectThread, currentThreadId }: 
     }
   };
 
+  // Delete a thread
+  const handleDeleteThread = async (threadId: string, event: React.MouseEvent) => {
+    // Stop the event from bubbling up to the parent button
+    event.stopPropagation();
+    
+    if (!threadId) return;
+    
+    // Set the deleting state
+    setDeletingThreadId(threadId);
+    
+    try {
+      // Call the API to delete the thread
+      const success = await api.deleteThread(threadId);
+      
+      if (success) {
+        // Remove the thread from the local state
+        setThreads(threads.filter(thread => thread.id !== threadId));
+        
+        // If the deleted thread is the current thread, create a new chat
+        if (currentThreadId === threadId) {
+          onNewChat();
+        }
+      } else {
+        setError('Failed to delete thread');
+      }
+    } catch (err) {
+      console.error('Error deleting thread:', err);
+      setError('Failed to delete thread');
+    } finally {
+      // Clear the deleting state
+      setDeletingThreadId(null);
+    }
+  };
+
   // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -134,7 +169,7 @@ export default function Sidebar({ onNewChat, onSelectThread, currentThreadId }: 
         ) : (
           <ul className="space-y-1 px-2">
             {threads.map((thread) => (
-              <li key={thread.id}>
+              <li key={thread.id} className="relative">
                 <button
                   onClick={() => onSelectThread(thread.id!)}
                   className={`w-full text-left px-3 py-2 rounded-md flex items-start gap-2 hover:bg-gray-700 transition-colors ${
@@ -150,6 +185,19 @@ export default function Sidebar({ onNewChat, onSelectThread, currentThreadId }: 
                       {thread.updated_at ? formatDate(thread.updated_at) : 'Just now'}
                     </div>
                   </div>
+                </button>
+                {/* Delete button */}
+                <button
+                  onClick={(e) => handleDeleteThread(thread.id!, e)}
+                  className="absolute right-2 top-2 p-1 rounded-full hover:bg-gray-600 text-gray-400 hover:text-red-400 transition-colors"
+                  title="Delete thread"
+                  disabled={deletingThreadId === thread.id}
+                >
+                  {deletingThreadId === thread.id ? (
+                    <FiLoader className="animate-spin" />
+                  ) : (
+                    <FiTrash2 className="text-sm" />
+                  )}
                 </button>
               </li>
             ))}
