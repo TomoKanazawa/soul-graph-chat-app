@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { supabaseAdmin } from '../../supabase';
 
 // Get the SoulGraph API URL from environment variables - use the same variable as other routes
 const SOULGRAPH_API_URL = process.env.API_URL || 'http://localhost:8000';
@@ -31,6 +32,30 @@ export async function GET(
     const response = await axios.get(apiUrl);
     
     console.log(`Received response from SoulGraph API for thread ${threadId}`);
+    
+    // Sync the thread data with Supabase for real-time updates
+    const threadData = response.data;
+    if (threadData && threadData.id) {
+      try {
+        // Insert or update the thread in Supabase
+        const { error } = await supabaseAdmin
+          .from('chat_threads')
+          .upsert({
+            id: threadData.id,
+            title: threadData.title || 'Chat',
+            messages: threadData.messages || [],
+            updated_at: new Date().toISOString()
+          });
+          
+        if (error) {
+          console.error('Error syncing thread with Supabase:', error);
+        } else {
+          console.log(`Thread ${threadData.id} synced with Supabase for real-time updates`);
+        }
+      } catch (supabaseError) {
+        console.error('Error in Supabase operation:', supabaseError);
+      }
+    }
     
     // Return the response from the SoulGraph API
     return NextResponse.json(response.data);
@@ -101,6 +126,22 @@ export async function DELETE(
     });
     
     console.log(`Received response from SoulGraph API for deleting thread ${threadId}`);
+    
+    // Delete the thread from Supabase
+    try {
+      const { error } = await supabaseAdmin
+        .from('chat_threads')
+        .delete()
+        .eq('id', threadId);
+        
+      if (error) {
+        console.error('Error deleting thread from Supabase:', error);
+      } else {
+        console.log(`Thread ${threadId} deleted from Supabase`);
+      }
+    } catch (supabaseError) {
+      console.error('Error in Supabase delete operation:', supabaseError);
+    }
     
     // Return the response from the SoulGraph API
     return NextResponse.json(response.data);

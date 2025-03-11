@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Message, ChatThread, ModelType } from '@/types';
 import { api } from '@/services/api';
+import { subscribeToThread, supabase, testSupabaseConnection } from '@/services/supabase';
+import { RealtimeChannel } from '@supabase/supabase-js';
 import { FiSend, FiSettings, FiInfo, FiCode, FiX, FiMessageCircle } from 'react-icons/fi';
 
 interface ChatProps {
@@ -28,6 +30,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const currentResponseRef = useRef<string>('');
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   // Scroll to bottom of messages
   useEffect(() => {
@@ -54,14 +57,78 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
     };
   }, []);
 
-  // Load thread messages when threadId changes
+  // Load thread messages when threadId changes and set up real-time subscription
   useEffect(() => {
+    // Clean up previous subscription if it exists
+    if (channelRef.current) {
+      console.log(`Cleaning up previous subscription`);
+      addDebugInfo(`Cleaning up previous subscription`);
+      channelRef.current.unsubscribe();
+      channelRef.current = null;
+    }
+
     if (threadId) {
       loadThreadMessages(threadId);
+      
+      // Set up real-time subscription to thread changes
+      if (!threadId.startsWith('test-')) { // Don't subscribe to test threads
+        addDebugInfo(`Setting up real-time subscription for thread: ${threadId}`);
+        
+        try {
+          channelRef.current = subscribeToThread(threadId, (payload) => {
+            console.log(`Thread ${threadId} change detected:`, payload);
+            addDebugInfo(`Real-time update received for thread: ${threadId}`);
+            
+            if (payload.new && payload.old) {
+              // Compare message counts to see if messages were added
+              const oldMessages = payload.old.messages || [];
+              const newMessages = payload.new.messages || [];
+              
+              if (Array.isArray(oldMessages) && Array.isArray(newMessages) && 
+                  newMessages.length > oldMessages.length) {
+                addDebugInfo(`Messages updated: ${oldMessages.length} → ${newMessages.length}`);
+                
+                // Update messages directly from the payload if possible
+                if (newMessages.length > 0) {
+                  const processedMessages = newMessages.map(msg => ({
+                    ...msg,
+                    timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+                  }));
+                  setMessages(processedMessages);
+                  addDebugInfo(`Updated messages directly from real-time payload`);
+                  return;
+                }
+              } else {
+                addDebugInfo(`Thread updated but message count unchanged`);
+              }
+            }
+            
+            // Refresh thread messages when changes are detected
+            loadThreadMessages(threadId);
+          });
+          
+          addDebugInfo(`Real-time subscription initialized for thread: ${threadId}`);
+        } catch (err) {
+          console.error('Error setting up real-time subscription:', err);
+          addDebugInfo(`Error setting up real-time subscription: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      } else {
+        addDebugInfo(`Not subscribing to test thread: ${threadId}`);
+      }
     } else {
       // Clear messages for a new chat
       setMessages([]);
     }
+    
+    // Clean up subscription on unmount or when threadId changes
+    return () => {
+      if (channelRef.current) {
+        console.log(`Cleaning up subscription on unmount/change`);
+        addDebugInfo(`Cleaning up subscription on unmount/change`);
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+      }
+    };
   }, [threadId]);
 
   // Add debug info
@@ -147,34 +214,75 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
     setError(null);
     try {
       console.log(`Loading thread messages for thread ID: ${threadId}`);
+      addDebugInfo(`Loading messages for thread: ${threadId}`);
       
       // For test threads, use mock data
       if (threadId.startsWith('test-')) {
         console.log('Using mock data for test thread');
         const mockMessages: Message[] = [
-          { role: 'system', content: 'You are a helpful assistant.' },
-          { role: 'user', content: 'Hello, how are you?' },
-          { role: 'assistant', content: 'I\'m doing well, thank you for asking! How can I help you today?' }
+          { role: 'system', content: 'You are a helpful assistant.', timestamp: new Date(Date.now() - 120000) },
+          { role: 'user', content: 'Hello, how are you?', timestamp: new Date(Date.now() - 60000) },
+          { role: 'assistant', content: 'I\'m doing well, thank you for asking! How can I help you today?', timestamp: new Date() }
         ];
         setMessages(mockMessages);
         console.log(`Loaded ${mockMessages.length} mock messages`);
+        addDebugInfo(`Loaded ${mockMessages.length} mock messages`);
         setIsLoading(false);
         return;
       }
       
-      // Fetch thread using the API service
+      // Check Supabase directly first for faster updates
+      addDebugInfo(`Checking Supabase for thread data...`);
+      try {
+        const { data: supabaseData, error: supabaseError } = await supabase
+          .from('chat_threads')
+          .select('id, title, messages, updated_at')
+          .eq('id', threadId)
+          .maybeSingle();
+          
+        if (supabaseError) {
+          console.error('Error fetching thread from Supabase:', supabaseError);
+          addDebugInfo(`Supabase error: ${supabaseError.message || JSON.stringify(supabaseError)}`);
+        } else if (supabaseData && supabaseData.messages && Array.isArray(supabaseData.messages)) {
+          // Set messages from Supabase with properly formatted timestamps
+          const processedMessages = supabaseData.messages.map(msg => ({
+            ...msg,
+            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+          }));
+          setMessages(processedMessages);
+          console.log(`Loaded ${processedMessages.length} messages from Supabase`);
+          addDebugInfo(`Loaded ${processedMessages.length} messages from Supabase`);
+          setIsLoading(false);
+          return;
+        } else {
+          addDebugInfo(`No valid data from Supabase: ${JSON.stringify(supabaseData)}`);
+        }
+      } catch (supabaseQueryError) {
+        console.error('Exception in Supabase query:', supabaseQueryError);
+        addDebugInfo(`Supabase query exception: ${supabaseQueryError instanceof Error ? supabaseQueryError.message : String(supabaseQueryError)}`);
+      }
+      
+      // If Supabase doesn't have the data, fetch thread using the API service
+      addDebugInfo(`Falling back to API service...`);
       const threadData = await api.getThread(threadId);
       
       if (threadData && threadData.messages && Array.isArray(threadData.messages)) {
-        // Set messages from the thread
-        setMessages(threadData.messages);
-        console.log(`Loaded ${threadData.messages.length} messages from thread`);
+        // Set messages from the thread with properly formatted timestamps
+        const processedMessages = threadData.messages.map(msg => ({
+          ...msg,
+          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+        }));
+        setMessages(processedMessages);
+        console.log(`Loaded ${processedMessages.length} messages from thread API`);
+        addDebugInfo(`Loaded ${processedMessages.length} messages from API`);
       } else {
         console.error('No messages array in response:', threadData);
+        addDebugInfo(`Error: No messages array in API response`);
         setMessages([]);
       }
     } catch (err) {
       console.error('Error loading thread:', err);
+      addDebugInfo(`Error loading thread: ${err instanceof Error ? err.message : String(err)}`);
       setError('Failed to load chat thread');
       setMessages([]);
     } finally {
@@ -204,6 +312,50 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
     assistantMessageRef.current = null;
 
     try {
+      // If we have a threadId, update Supabase directly with the user message
+      // This will trigger real-time updates for other clients
+      if (threadId) {
+        addDebugInfo(`Updating Supabase with user message...`);
+        try {
+          // First get the current thread to get existing messages
+          const { data: threadData, error: fetchError } = await supabase
+            .from('chat_threads')
+            .select('id, title, messages, updated_at')
+            .eq('id', threadId)
+            .maybeSingle();
+            
+          if (fetchError) {
+            console.error('Error fetching thread for update:', fetchError);
+            addDebugInfo(`Error fetching thread: ${fetchError.message || JSON.stringify(fetchError)}`);
+          } else if (threadData) {
+            // Update the thread with the new user message
+            const updatedMessages = [...(threadData.messages || []), userMessage];
+            addDebugInfo(`Updating thread with ${updatedMessages.length} messages`);
+            
+            const { error: updateError } = await supabase
+              .from('chat_threads')
+              .update({
+                messages: updatedMessages,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', threadId);
+              
+            if (updateError) {
+              console.error('Error updating thread with user message:', updateError);
+              addDebugInfo(`Error updating thread: ${updateError.message || JSON.stringify(updateError)}`);
+            } else {
+              console.log('Thread updated with user message, should trigger real-time update');
+              addDebugInfo(`Thread updated successfully, real-time update should trigger`);
+            }
+          } else {
+            addDebugInfo(`Thread not found in Supabase: ${threadId}`);
+          }
+        } catch (supabaseError) {
+          console.error('Exception in Supabase update:', supabaseError);
+          addDebugInfo(`Supabase update exception: ${supabaseError instanceof Error ? supabaseError.message : String(supabaseError)}`);
+        }
+      }
+
       if (useStreaming) {
         addDebugInfo(`Starting streaming request with thread ID: ${threadId || 'new'} using model: ${selectedModel}`);
         setStreamingStatus('Connecting...');
@@ -274,7 +426,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
             <select 
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value as ModelType)}
-              className="border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 bg-white dark:bg-gray-800"
+              className="p-2 border rounded-md dark:bg-gray-800 dark:border-gray-700"
             >
               <option value="soulgraph">SoulGraph</option>
               <option value="openai">OpenAI</option>
@@ -291,9 +443,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
                 className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
               />
               <label 
-                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${
-                  useStreaming ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-700'
-                }`}
+                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${useStreaming ? 'bg-blue-500' : 'bg-gray-300'}`}
               ></label>
             </div>
           </div>
@@ -304,29 +454,113 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
               <input 
                 type="checkbox" 
                 checked={debugMode}
-                onChange={() => setDebugMode(!debugMode)}
+                onChange={() => {
+                  setDebugMode(!debugMode);
+                  addDebugInfo("Debug mode " + (!debugMode ? "enabled" : "disabled"));
+                }}
                 className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
               />
               <label 
-                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${
-                  debugMode ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-700'
-                }`}
+                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${debugMode ? 'bg-green-500' : 'bg-gray-300'}`}
               ></label>
             </div>
           </div>
-        </div>
-        
-        <div className="mt-6 flex justify-end">
+          
           <button
-            onClick={() => setShowSettings(false)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            onClick={() => {
+              // Test real-time updates by manually triggering a Supabase update
+              if (threadId) {
+                addDebugInfo("Testing real-time updates...");
+                
+                // Create a test message to add to the thread
+                const testMessage = {
+                  id: `test-${Date.now()}`,
+                  role: 'system',
+                  content: `This is a test message sent at ${new Date().toLocaleTimeString()}`,
+                  timestamp: new Date()
+                };
+                
+                // First get the current thread data
+                supabase
+                  .from('chat_threads')
+                  .select('id, title, messages, updated_at')
+                  .eq('id', threadId)
+                  .maybeSingle()
+                  .then(({ data, error }) => {
+                    if (error) {
+                      addDebugInfo(`Real-time test error: ${error.message || JSON.stringify(error)}`);
+                      return;
+                    }
+                    
+                    if (!data) {
+                      addDebugInfo(`Thread not found for real-time test`);
+                      return;
+                    }
+                    
+                    // Add the test message to the messages array
+                    const updatedMessages = [...(data.messages || []), testMessage];
+                    addDebugInfo(`Adding test message to thread (${updatedMessages.length} total messages)`);
+                    
+                    // Update the thread with the new message
+                    supabase
+                      .from('chat_threads')
+                      .update({
+                        messages: updatedMessages,
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('id', threadId)
+                      .then(({ error: updateError }) => {
+                        if (updateError) {
+                          addDebugInfo(`Real-time test update error: ${updateError.message || JSON.stringify(updateError)}`);
+                        } else {
+                          addDebugInfo("Real-time test message added to thread");
+                        }
+                      });
+                  });
+              } else {
+                addDebugInfo("Cannot test real-time updates: No thread ID");
+              }
+            }}
+            className="w-full py-2 px-4 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
           >
-            Close
+            Test Real-time Updates
           </button>
         </div>
       </div>
     </div>
   );
+
+  // Test Supabase connection
+  const testSupabaseConnection = async () => {
+    addDebugInfo(`Testing Supabase connection...`);
+    try {
+      // Test direct database access
+      const { data, error } = await supabase
+        .from('chat_threads')
+        .select('id')
+        .limit(1);
+        
+      if (error) {
+        addDebugInfo(`Supabase query error: ${error.message}`);
+      } else {
+        addDebugInfo(`Supabase query successful: found ${data?.length || 0} threads`);
+      }
+      
+      // Test real-time connection
+      const tempChannel = supabase.channel('test-connection')
+        .subscribe((status) => {
+          addDebugInfo(`Real-time test connection status: ${status}`);
+          // Unsubscribe after testing
+          setTimeout(() => {
+            tempChannel.unsubscribe();
+            addDebugInfo(`Test connection unsubscribed`);
+          }, 3000);
+        });
+        
+    } catch (err) {
+      addDebugInfo(`Supabase connection test exception: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full max-w-4xl mx-auto">
@@ -365,7 +599,12 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
                   </div>
                 )}
                 <p className="text-xs opacity-70 mt-1.5 text-right">
-                  {message.timestamp?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  {message.timestamp 
+                    ? (message.timestamp instanceof Date 
+                        ? message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                        : new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                      )
+                    : ''}
                 </p>
               </div>
               {message.role === 'assistant' && isTyping && index === messages.length - 1 && message.content !== '' && (
@@ -499,19 +738,33 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
       {showSettings && renderSettings()}
       
       {debugMode && (
-        <div className="border-t border-gray-200 dark:border-gray-800 p-4 bg-gray-100 dark:bg-gray-900 text-xs font-mono overflow-auto max-h-40">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-semibold">Debug Info</h3>
-            <button
-              onClick={() => setDebugInfo([])}
-              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              Clear
-            </button>
+        <div className="bg-gray-100 dark:bg-gray-800 p-2 text-xs font-mono overflow-auto max-h-40">
+          <div className="flex justify-between items-center mb-1">
+            <h3 className="font-bold">Debug Info</h3>
+            <div className="flex space-x-2">
+              <button 
+                onClick={testSupabaseConnection}
+                className="text-xs bg-blue-500 text-white px-2 py-1 rounded"
+              >
+                Test Connection
+              </button>
+              <button 
+                onClick={() => setDebugInfo([])}
+                className="text-xs bg-red-500 text-white px-2 py-1 rounded"
+              >
+                Clear
+              </button>
+            </div>
           </div>
-          <div className="space-y-1">
+          <div>
+            <p><strong>Thread ID:</strong> {threadId || 'New chat'}</p>
+            <p><strong>Real-time Channel:</strong> {channelRef.current ? 'Active' : 'Not connected'}</p>
+            <p><strong>Model:</strong> {selectedModel}</p>
+            <p><strong>Streaming:</strong> {useStreaming ? 'Enabled' : 'Disabled'}</p>
+          </div>
+          <div className="mt-2 border-t border-gray-300 dark:border-gray-700 pt-1">
             {debugInfo.map((info, i) => (
-              <div key={i} className="text-gray-700 dark:text-gray-300">{info}</div>
+              <div key={i} className="text-xs">{info}</div>
             ))}
           </div>
         </div>

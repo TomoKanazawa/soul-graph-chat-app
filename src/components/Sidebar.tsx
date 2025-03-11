@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FiPlus, FiMessageSquare, FiTrash2, FiLoader, FiAlertCircle } from 'react-icons/fi';
 import { ChatThread } from '@/types';
 import { api } from '@/services/api';
+import { subscribeToThreads } from '@/services/supabase';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface SidebarProps {
   onNewChat: () => void;
@@ -14,10 +16,75 @@ export default function Sidebar({ onNewChat, onSelectThread, currentThreadId }: 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<string>('initializing');
 
-  // Fetch threads on component mount
+  // Fetch threads on component mount and set up real-time subscription
   useEffect(() => {
     fetchThreads();
+
+    // Set up real-time subscription to thread changes
+    try {
+      console.log('Setting up real-time subscription to all threads');
+      channelRef.current = subscribeToThreads((payload) => {
+        console.log('Thread change detected:', payload);
+        
+        // Handle different event types
+        if (payload.eventType === 'INSERT') {
+          console.log('New thread created:', payload.new);
+          // Fetch all threads to ensure we have the latest data
+          fetchThreads();
+        } else if (payload.eventType === 'UPDATE') {
+          console.log('Thread updated:', payload.new);
+          // Update the thread in the local state if possible
+          if (payload.new && payload.new.id) {
+            setThreads(prevThreads => 
+              prevThreads.map(thread => 
+                thread.id === payload.new.id ? { ...thread, ...payload.new } : thread
+              )
+            );
+          } else {
+            // Fallback to fetching all threads
+            fetchThreads();
+          }
+        } else if (payload.eventType === 'DELETE') {
+          console.log('Thread deleted:', payload.old);
+          // Remove the thread from the local state
+          if (payload.old && payload.old.id) {
+            setThreads(prevThreads => 
+              prevThreads.filter(thread => thread.id !== payload.old.id)
+            );
+          } else {
+            // Fallback to fetching all threads
+            fetchThreads();
+          }
+        } else {
+          // For any other event, refresh all threads
+          fetchThreads();
+        }
+        
+        setRealtimeStatus('active');
+      });
+      
+      // Set status based on subscription
+      if (channelRef.current) {
+        setRealtimeStatus('subscribed');
+      } else {
+        setRealtimeStatus('failed');
+      }
+    } catch (err) {
+      console.error('Error setting up real-time subscription:', err);
+      setRealtimeStatus('error');
+    }
+
+    // Clean up subscription on unmount
+    return () => {
+      if (channelRef.current) {
+        console.log('Cleaning up thread subscription');
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+      }
+    };
   }, []);
 
   // Fetch threads from the API

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { supabaseAdmin } from '../supabase';
 
 // Get the SoulGraph API URL from environment variables - use the same variable as other routes
 const SOULGRAPH_API_URL = process.env.API_URL || 'http://localhost:8000';
@@ -67,6 +68,72 @@ export async function GET(request: NextRequest) {
       // Something happened in setting up the request that triggered an Error
       console.error(`Request setup error: ${error.message}`);
       
+      return NextResponse.json(
+        { error: error.message || 'Unknown error' },
+        { status: 500 }
+      );
+    }
+  }
+}
+
+/**
+ * POST handler for the /api/threads endpoint
+ * Creates a new thread and syncs it with Supabase for real-time updates
+ */
+export async function POST(request: NextRequest) {
+  try {
+    // Parse the request body
+    const body = await request.json();
+    
+    // Forward the request to the SoulGraph API
+    const apiUrl = `${SOULGRAPH_API_URL}/v0/threads`;
+    const response = await axios.post(apiUrl, body);
+    
+    // Get the thread data from the response
+    const threadData = response.data;
+    
+    // Sync the thread data with Supabase for real-time updates
+    if (threadData && threadData.id) {
+      try {
+        // Insert or update the thread in Supabase
+        const { error } = await supabaseAdmin
+          .from('chat_threads')
+          .upsert({
+            id: threadData.id,
+            title: threadData.title || 'New Chat',
+            user_id: body.user_id,
+            messages: threadData.messages || [],
+            created_at: threadData.created_at || new Date().toISOString(),
+            updated_at: threadData.updated_at || new Date().toISOString()
+          });
+          
+        if (error) {
+          console.error('Error syncing thread with Supabase:', error);
+        } else {
+          console.log(`Thread ${threadData.id} synced with Supabase for real-time updates`);
+        }
+      } catch (supabaseError) {
+        console.error('Error in Supabase operation:', supabaseError);
+      }
+    }
+    
+    // Return the response from the SoulGraph API
+    return NextResponse.json(threadData);
+  } catch (error: any) {
+    console.error('Error in POST threads API route:', error);
+    
+    // Handle errors similar to the GET handler
+    if (error.response) {
+      return NextResponse.json(
+        { error: error.response.data.error || 'Error from SoulGraph API' },
+        { status: error.response.status }
+      );
+    } else if (error.request) {
+      return NextResponse.json(
+        { error: 'No response from SoulGraph API' },
+        { status: 503 }
+      );
+    } else {
       return NextResponse.json(
         { error: error.message || 'Unknown error' },
         { status: 500 }
