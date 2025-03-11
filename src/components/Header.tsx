@@ -15,7 +15,7 @@ export default function Header({ onToggleSidebar, showSidebar }: HeaderProps) {
       try {
         const isHealthy = await api.healthCheck();
         setIsConnected(isHealthy);
-      } catch (error) {
+      } catch {
         setIsConnected(false);
       }
     };

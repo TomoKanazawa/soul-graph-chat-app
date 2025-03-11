@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { ChatThread } from '../types';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 // Initialize the Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -29,8 +31,21 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Log Supabase connection status
 console.log('Supabase client initialized with URL:', supabaseUrl);
 
+// Define a type for the Supabase real-time payload for chat threads
+type ThreadRecord = {
+  id: string;
+  messages?: ChatThread['messages'];
+  title?: string;
+  created_at?: string;
+  updated_at?: string;
+  metadata?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+type ThreadChangePayload = RealtimePostgresChangesPayload<ThreadRecord>;
+
 // Create a reusable function to subscribe to chat_threads table changes
-export const subscribeToThreads = (callback: (payload: any) => void) => {
+export const subscribeToThreads = (callback: (payload: ThreadChangePayload) => void) => {
   console.log('Setting up subscription to all threads');
   
   const channel = supabase.channel('custom-all-channel')
@@ -39,7 +54,7 @@ export const subscribeToThreads = (callback: (payload: any) => void) => {
       { event: '*', schema: 'public', table: 'chat_threads' },
       (payload) => {
         console.log('Change received from Supabase!', payload);
-        callback(payload);
+        callback(payload as ThreadChangePayload);
       }
     )
     .subscribe((status) => {
@@ -56,7 +71,7 @@ export const subscribeToThreads = (callback: (payload: any) => void) => {
 };
 
 // Create a function to subscribe to a specific thread's changes
-export const subscribeToThread = (threadId: string, callback: (payload: any) => void) => {
+export const subscribeToThread = (threadId: string, callback: (payload: ThreadChangePayload) => void) => {
   console.log(`Setting up real-time subscription for thread ${threadId}`);
   
   // Create a unique channel name for this thread
@@ -76,7 +91,7 @@ export const subscribeToThread = (threadId: string, callback: (payload: any) => 
         console.log(`Change received for thread ${threadId}!`, payload);
         console.log(`Payload new state:`, payload.new);
         console.log(`Payload old state:`, payload.old);
-        callback(payload);
+        callback(payload as ThreadChangePayload);
       }
     )
     .subscribe((status) => {

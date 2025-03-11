@@ -42,37 +42,54 @@ export async function GET(request: NextRequest) {
 
     // Return the response from the SoulGraph API
     return NextResponse.json(response.data);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in threads API route:', error);
     
     // Handle different types of errors
-    if (error.response) {
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { 
+        response?: { 
+          status: number; 
+          data: { error?: string }; 
+        }; 
+        request?: unknown; 
+        message?: string; 
+      };
+      
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
-      console.error(`Error response status: ${error.response.status}`);
-      console.error(`Error response data:`, error.response.data);
-      
-      return NextResponse.json(
-        { error: error.response.data.error || 'Error from SoulGraph API' },
-        { status: error.response.status }
-      );
-    } else if (error.request) {
-      // The request was made but no response was received
-      console.error('No response received from SoulGraph API');
-      
-      return NextResponse.json(
-        { error: 'No response from SoulGraph API' },
-        { status: 503 }
-      );
-    } else {
-      // Something happened in setting up the request that triggered an Error
-      console.error(`Request setup error: ${error.message}`);
-      
-      return NextResponse.json(
-        { error: error.message || 'Unknown error' },
-        { status: 500 }
-      );
+      if (axiosError.response) {
+        console.error(`Error response status: ${axiosError.response.status}`);
+        console.error(`Error response data:`, axiosError.response.data);
+        
+        return NextResponse.json(
+          { error: axiosError.response.data.error || 'Error from SoulGraph API' },
+          { status: axiosError.response.status }
+        );
+      } else if ('request' in axiosError && axiosError.request) {
+        // The request was made but no response was received
+        console.error('No response received from SoulGraph API');
+        
+        return NextResponse.json(
+          { error: 'No response from SoulGraph API' },
+          { status: 503 }
+        );
+      } else if ('message' in axiosError && axiosError.message) {
+        // Something happened in setting up the request that triggered an Error
+        console.error(`Request setup error: ${axiosError.message}`);
+        
+        return NextResponse.json(
+          { error: axiosError.message || 'Unknown error' },
+          { status: 500 }
+        );
+      }
     }
+    
+    // Fallback error response
+    return NextResponse.json(
+      { error: 'Unknown error occurred' },
+      { status: 500 }
+    );
   }
 }
 
@@ -119,25 +136,42 @@ export async function POST(request: NextRequest) {
     
     // Return the response from the SoulGraph API
     return NextResponse.json(threadData);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in POST threads API route:', error);
     
     // Handle errors similar to the GET handler
-    if (error.response) {
-      return NextResponse.json(
-        { error: error.response.data.error || 'Error from SoulGraph API' },
-        { status: error.response.status }
-      );
-    } else if (error.request) {
-      return NextResponse.json(
-        { error: 'No response from SoulGraph API' },
-        { status: 503 }
-      );
-    } else {
-      return NextResponse.json(
-        { error: error.message || 'Unknown error' },
-        { status: 500 }
-      );
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { 
+        response?: { 
+          status: number; 
+          data: { error?: string }; 
+        }; 
+        request?: unknown; 
+        message?: string; 
+      };
+      
+      if (axiosError.response) {
+        return NextResponse.json(
+          { error: axiosError.response.data.error || 'Error from SoulGraph API' },
+          { status: axiosError.response.status }
+        );
+      } else if ('request' in axiosError && axiosError.request) {
+        return NextResponse.json(
+          { error: 'No response from SoulGraph API' },
+          { status: 503 }
+        );
+      } else if ('message' in axiosError && axiosError.message) {
+        return NextResponse.json(
+          { error: axiosError.message || 'Unknown error' },
+          { status: 500 }
+        );
+      }
     }
+    
+    // Fallback error response
+    return NextResponse.json(
+      { error: 'Unknown error occurred' },
+      { status: 500 }
+    );
   }
 } 

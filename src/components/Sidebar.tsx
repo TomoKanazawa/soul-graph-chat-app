@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiPlus, FiMessageSquare, FiTrash2, FiLoader, FiAlertCircle } from 'react-icons/fi';
+import { FiPlus, FiMessageSquare, FiTrash2, FiLoader } from 'react-icons/fi';
 import { ChatThread } from '@/types';
 import { api } from '@/services/api';
 import { subscribeToThreads } from '@/services/supabase';
@@ -17,7 +17,6 @@ export default function Sidebar({ onNewChat, onSelectThread, currentThreadId }: 
   const [error, setError] = useState<string | null>(null);
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const [realtimeStatus, setRealtimeStatus] = useState<string>('initializing');
 
   // Fetch threads on component mount and set up real-time subscription
   useEffect(() => {
@@ -62,19 +61,9 @@ export default function Sidebar({ onNewChat, onSelectThread, currentThreadId }: 
           // For any other event, refresh all threads
           fetchThreads();
         }
-        
-        setRealtimeStatus('active');
       });
-      
-      // Set status based on subscription
-      if (channelRef.current) {
-        setRealtimeStatus('subscribed');
-      } else {
-        setRealtimeStatus('failed');
-      }
     } catch (err) {
       console.error('Error setting up real-time subscription:', err);
-      setRealtimeStatus('error');
     }
 
     // Clean up subscription on unmount

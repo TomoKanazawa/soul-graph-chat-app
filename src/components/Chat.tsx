@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Message, ChatThread, ModelType } from '@/types';
+import { useState, useEffect, useRef } from 'react';
+import { Message, ModelType } from '@/types';
 import { api } from '@/services/api';
-import { subscribeToThread, supabase, testSupabaseConnection } from '@/services/supabase';
+import { subscribeToThread, supabase } from '@/services/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { FiSend, FiSettings, FiInfo, FiCode, FiX, FiMessageCircle } from 'react-icons/fi';
+import { FiSend, FiSettings, FiInfo, FiX, FiMessageCircle } from 'react-icons/fi';
 
 interface ChatProps {
   threadId?: string;
@@ -23,7 +23,6 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
   const [chunkCount, setChunkCount] = useState<number>(0);
   const [receivedChunks, setReceivedChunks] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState<boolean>(false);
-  const [renderKey, setRenderKey] = useState<number>(0);
   const [selectedModel, setSelectedModel] = useState<ModelType>('soulgraph');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const assistantMessageRef = useRef<Message | null>(null);
@@ -81,8 +80,8 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
             
             if (payload.new && payload.old) {
               // Compare message counts to see if messages were added
-              const oldMessages = payload.old.messages || [];
-              const newMessages = payload.new.messages || [];
+              const oldMessages = (payload.old as { messages?: Message[] }).messages || [];
+              const newMessages = (payload.new as { messages?: Message[] }).messages || [];
               
               if (Array.isArray(oldMessages) && Array.isArray(newMessages) && 
                   newMessages.length > oldMessages.length) {
@@ -129,6 +128,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
         channelRef.current = null;
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
 
   // Add debug info
@@ -139,6 +139,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
   };
 
   // Show typing indicator for a short time after each chunk
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const showTypingIndicator = () => {
     setIsTyping(true);
     
@@ -578,7 +579,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
         ) : (
           messages.map((message, index) => (
             <div 
-              key={`${index}-${message.timestamp?.getTime() || 0}-${renderKey}`} 
+              key={`${index}-${message.timestamp?.getTime() || 0}`}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} group`}
             >
               <div 
@@ -621,6 +622,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
             </div>
           ))
         )}
+        
         {isLoading && !useStreaming && (
           <div className="flex justify-start">
             <div className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-2xl px-4 py-3 shadow-sm">
@@ -632,6 +634,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
             </div>
           </div>
         )}
+        
         {streamingStatus && (useStreaming) && (
           <div className="flex justify-center">
             <div className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 rounded-full px-4 py-1.5 text-xs font-medium">
@@ -639,6 +642,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
             </div>
           </div>
         )}
+        
         {error && (
           <div className="flex justify-center">
             <div className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 rounded-lg px-4 py-2 flex items-center space-x-2">
@@ -653,13 +657,35 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
             </div>
           </div>
         )}
+        {/* Debug information panel */}
         {debugMode && (
           <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800/50 rounded-lg text-xs font-mono border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-gray-700 dark:text-gray-300">Debug Info:</h3>
-              <FiCode className="w-4 h-4 text-gray-500" />
+              <div className="flex space-x-2">
+                <button 
+                  onClick={testSupabaseConnection}
+                  className="text-xs bg-blue-500 text-white px-2 py-1 rounded"
+                >
+                  Test Connection
+                </button>
+                <button 
+                  onClick={() => setDebugInfo([])}
+                  className="text-xs bg-red-500 text-white px-2 py-1 rounded"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
-            <div className="max-h-40 overflow-y-auto space-y-1">
+            
+            <div className="mb-2">
+              <p><strong>Thread ID:</strong> {threadId || 'New chat'}</p>
+              <p><strong>Real-time Channel:</strong> {channelRef.current ? 'Active' : 'Not connected'}</p>
+              <p><strong>Model:</strong> {selectedModel}</p>
+              <p><strong>Streaming:</strong> {useStreaming ? 'Enabled' : 'Disabled'}</p>
+            </div>
+            
+            <div className="max-h-40 overflow-y-auto space-y-1 border-t border-gray-200 dark:border-gray-700 pt-2">
               {debugInfo.map((info, i) => (
                 <div key={i} className="text-gray-600 dark:text-gray-400">{info}</div>
               ))}
@@ -671,7 +697,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
                 <div className="max-h-40 overflow-y-auto">
                   {receivedChunks.map((chunk, i) => (
                     <div key={i} className="mb-1 border-b border-gray-200 dark:border-gray-700 pb-1 text-gray-600 dark:text-gray-400">
-                      <span className="font-bold">{i+1}:</span> "{chunk}"
+                      <span className="font-bold">{i+1}:</span> &quot;{chunk}&quot;
                     </div>
                   ))}
                 </div>
@@ -736,41 +762,6 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
       </div>
       
       {showSettings && renderSettings()}
-      
-      {debugMode && (
-        <div className="bg-gray-100 dark:bg-gray-800 p-2 text-xs font-mono overflow-auto max-h-40">
-          <div className="flex justify-between items-center mb-1">
-            <h3 className="font-bold">Debug Info</h3>
-            <div className="flex space-x-2">
-              <button 
-                onClick={testSupabaseConnection}
-                className="text-xs bg-blue-500 text-white px-2 py-1 rounded"
-              >
-                Test Connection
-              </button>
-              <button 
-                onClick={() => setDebugInfo([])}
-                className="text-xs bg-red-500 text-white px-2 py-1 rounded"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-          <div>
-            <p><strong>Thread ID:</strong> {threadId || 'New chat'}</p>
-            <p><strong>Real-time Channel:</strong> {channelRef.current ? 'Active' : 'Not connected'}</p>
-            <p><strong>Model:</strong> {selectedModel}</p>
-            <p><strong>Streaming:</strong> {useStreaming ? 'Enabled' : 'Disabled'}</p>
-          </div>
-          <div className="mt-2 border-t border-gray-300 dark:border-gray-700 pt-1">
-            {debugInfo.map((info, i) => (
-              <div key={i} className="text-xs">{info}</div>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      <div ref={messagesEndRef} />
     </div>
   );
 } 

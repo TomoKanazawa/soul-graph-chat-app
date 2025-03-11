@@ -27,9 +27,6 @@ export async function POST(request: NextRequest) {
       // Create a TransformStream to intercept and process the stream
       const { readable, writable } = new TransformStream();
       
-      // Clone the response to avoid consuming it twice
-      const clonedResponse = response.clone();
-      
       // Process the original stream
       const reader = response.body?.getReader();
       const writer = writable.getWriter();

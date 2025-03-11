@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabaseAdmin } from '../../supabase';
 
@@ -10,11 +10,11 @@ const SOULGRAPH_API_URL = process.env.API_URL || 'http://localhost:8000';
  * Proxies requests to the SoulGraph backend API
  */
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { threadId: string } }
+  request: Request,
+  { params }: { params: Promise<{ threadId: string }> }
 ) {
   // Get the thread ID from the URL params
-  const threadId = params.threadId;
+  const { threadId } = await params;
   
   console.log(`API route: Fetching thread with ID: ${threadId}`);
   console.log(`Using API URL: ${SOULGRAPH_API_URL}`);
@@ -59,37 +59,54 @@ export async function GET(
     
     // Return the response from the SoulGraph API
     return NextResponse.json(response.data);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Error in thread API route for thread ${threadId}:`, error);
     
     // Handle different types of errors
-    if (error.response) {
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { 
+        response?: { 
+          status: number; 
+          data: { error?: string }; 
+        }; 
+        request?: unknown; 
+        message?: string; 
+      };
+      
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
-      console.error(`Error response status: ${error.response.status}`);
-      console.error(`Error response data:`, error.response.data);
-      
-      return NextResponse.json(
-        { error: error.response.data.error || 'Error from SoulGraph API' },
-        { status: error.response.status }
-      );
-    } else if (error.request) {
-      // The request was made but no response was received
-      console.error('No response received from SoulGraph API');
-      
-      return NextResponse.json(
-        { error: 'No response from SoulGraph API' },
-        { status: 503 }
-      );
-    } else {
-      // Something happened in setting up the request that triggered an Error
-      console.error(`Request setup error: ${error.message}`);
-      
-      return NextResponse.json(
-        { error: error.message || 'Unknown error' },
-        { status: 500 }
-      );
+      if (axiosError.response) {
+        console.error(`Error response status: ${axiosError.response.status}`);
+        console.error(`Error response data:`, axiosError.response.data);
+        
+        return NextResponse.json(
+          { error: axiosError.response.data.error || 'Error from SoulGraph API' },
+          { status: axiosError.response.status }
+        );
+      } else if ('request' in axiosError && axiosError.request) {
+        // The request was made but no response was received
+        console.error('No response received from SoulGraph API');
+        
+        return NextResponse.json(
+          { error: 'No response from SoulGraph API' },
+          { status: 503 }
+        );
+      } else if ('message' in axiosError && axiosError.message) {
+        // Something happened in setting up the request that triggered an Error
+        console.error(`Request setup error: ${axiosError.message}`);
+        
+        return NextResponse.json(
+          { error: axiosError.message || 'Unknown error' },
+          { status: 500 }
+        );
+      }
     }
+    
+    // Fallback error response
+    return NextResponse.json(
+      { error: 'Unknown error occurred' },
+      { status: 500 }
+    );
   }
 }
 
@@ -98,11 +115,11 @@ export async function GET(
  * Proxies delete requests to the SoulGraph backend API
  */
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { threadId: string } }
+  request: Request,
+  { params }: { params: Promise<{ threadId: string }> }
 ) {
   // Get the thread ID from the URL params
-  const threadId = params.threadId;
+  const { threadId } = await params;
   
   console.log(`API route: Deleting thread with ID: ${threadId}`);
   console.log(`Using API URL: ${SOULGRAPH_API_URL}`);
@@ -114,8 +131,8 @@ export async function DELETE(
 
   try {
     // Get user_id from query parameters (optional)
-    const searchParams = request.nextUrl.searchParams;
-    const user_id = searchParams.get('user_id');
+    const url = new URL(request.url);
+    const user_id = url.searchParams.get('user_id');
     
     const apiUrl = `${SOULGRAPH_API_URL}/v0/threads/${threadId}`;
     console.log(`Making DELETE request to: ${apiUrl}`);
@@ -145,36 +162,53 @@ export async function DELETE(
     
     // Return the response from the SoulGraph API
     return NextResponse.json(response.data);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Error in thread delete API route for thread ${threadId}:`, error);
     
     // Handle different types of errors
-    if (error.response) {
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { 
+        response?: { 
+          status: number; 
+          data: { error?: string }; 
+        }; 
+        request?: unknown; 
+        message?: string; 
+      };
+      
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
-      console.error(`Error response status: ${error.response.status}`);
-      console.error(`Error response data:`, error.response.data);
-      
-      return NextResponse.json(
-        { error: error.response.data.error || 'Error from SoulGraph API' },
-        { status: error.response.status }
-      );
-    } else if (error.request) {
-      // The request was made but no response was received
-      console.error('No response received from SoulGraph API');
-      
-      return NextResponse.json(
-        { error: 'No response from SoulGraph API' },
-        { status: 503 }
-      );
-    } else {
-      // Something happened in setting up the request that triggered an Error
-      console.error(`Request setup error: ${error.message}`);
-      
-      return NextResponse.json(
-        { error: error.message || 'Unknown error' },
-        { status: 500 }
-      );
+      if (axiosError.response) {
+        console.error(`Error response status: ${axiosError.response.status}`);
+        console.error(`Error response data:`, axiosError.response.data);
+        
+        return NextResponse.json(
+          { error: axiosError.response.data.error || 'Error from SoulGraph API' },
+          { status: axiosError.response.status }
+        );
+      } else if ('request' in axiosError && axiosError.request) {
+        // The request was made but no response was received
+        console.error('No response received from SoulGraph API');
+        
+        return NextResponse.json(
+          { error: 'No response from SoulGraph API' },
+          { status: 503 }
+        );
+      } else if ('message' in axiosError && axiosError.message) {
+        // Something happened in setting up the request that triggered an Error
+        console.error(`Request setup error: ${axiosError.message}`);
+        
+        return NextResponse.json(
+          { error: axiosError.message || 'Unknown error' },
+          { status: 500 }
+        );
+      }
     }
+    
+    // Fallback error response
+    return NextResponse.json(
+      { error: 'Unknown error occurred' },
+      { status: 500 }
+    );
   }
 } 

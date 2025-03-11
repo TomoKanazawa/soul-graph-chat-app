@@ -79,7 +79,6 @@ export const api = {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let receivedThreadId: string | undefined = threadId;
-      let completeResponse = '';
       let isDone = false;
       let buffer = ''; // Buffer for incomplete data
       let chunkCount = 0;
@@ -127,7 +126,6 @@ export const api = {
             
             if (data.chunk) {
               console.log(`Received text chunk: "${data.chunk}"`);
-              completeResponse += data.chunk;
               
               // Immediately call onChunk with the new chunk
               onChunk(data.chunk, false, receivedThreadId, data.chunk);
