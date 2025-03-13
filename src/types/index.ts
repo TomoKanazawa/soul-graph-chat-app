@@ -14,7 +14,7 @@ export interface ChatThread {
   metadata?: Record<string, unknown>;
 }
 
-export type ModelType = 'soulgraph' | 'openai';
+export type ModelType = 'soulgraph';
 
 export interface InferenceRequest {
   message: string;

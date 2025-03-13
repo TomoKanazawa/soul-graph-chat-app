@@ -3,12 +3,11 @@ import { InferenceRequest, InferenceResponse, ModelType, ChatThread } from '@/ty
 
 // API endpoints
 const SOULGRAPH_API_URL = '/api/soulgraph';
-const OPENAI_API_URL = '/api/openai';
 const THREADS_API_URL = '/api/threads';
 const TEST_USER_ID = 'test-user-123'; // Fixed test user ID
 
 export const api = {
-  // Send a message to the API (SoulGraph or OpenAI)
+  // Send a message to the API (SoulGraph)
   sendMessage: async (message: string, threadId?: string, model: ModelType = 'soulgraph'): Promise<InferenceResponse> => {
     try {
       const request: InferenceRequest = {
@@ -20,11 +19,8 @@ export const api = {
         stream: false,
         model
       };
-
-      // Choose the appropriate API endpoint based on the model
-      const apiUrl = model === 'openai' ? OPENAI_API_URL : SOULGRAPH_API_URL;
       
-      const response = await axios.post<InferenceResponse>(apiUrl, request);
+      const response = await axios.post<InferenceResponse>(SOULGRAPH_API_URL, request);
       return response.data;
     } catch (error) {
       console.error('Error sending message:', error);
@@ -52,11 +48,8 @@ export const api = {
 
       console.log(`Sending streaming request to ${model} API:`, request);
 
-      // Choose the appropriate API endpoint based on the model
-      const apiUrl = model === 'openai' ? OPENAI_API_URL : SOULGRAPH_API_URL;
-
       // Use the Fetch API with ReadableStream for better streaming support
-      const response = await fetch(apiUrl, {
+      const response = await fetch(SOULGRAPH_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

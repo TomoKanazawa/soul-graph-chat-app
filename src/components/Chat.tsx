@@ -430,7 +430,6 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
               className="p-2 border rounded-md dark:bg-gray-800 dark:border-gray-700"
             >
               <option value="soulgraph">SoulGraph</option>
-              <option value="openai">OpenAI</option>
             </select>
           </div>
           
@@ -724,7 +723,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={`Message ${selectedModel === 'soulgraph' ? 'SoulGraph' : 'OpenAI'}...`}
+              placeholder={`Message SoulGraph...`}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-full bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               disabled={isLoading}
               ref={inputRef}
