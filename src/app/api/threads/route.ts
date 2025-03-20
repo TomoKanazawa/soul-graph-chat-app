@@ -95,19 +95,41 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST handler for the /api/threads endpoint
- * Creates a new thread and syncs it with Supabase for real-time updates
+ * Creates a new thread using the inference endpoint with new_thread=true
  */
 export async function POST(request: NextRequest) {
   try {
     // Parse the request body
     const body = await request.json();
     
-    // Forward the request to the SoulGraph API
-    const apiUrl = `${SOULGRAPH_API_URL}/v0/threads`;
-    const response = await axios.post(apiUrl, body);
+    // Prepare the data for the inference endpoint
+    const inferenceData = {
+      message: body.message || "New conversation",
+      user_id: body.user_id,
+      new_thread: true,
+      system_prompt: body.system_prompt || "You are a helpful assistant.",
+      stream: false
+    };
+    
+    // Forward the request to the SoulGraph inference API
+    const apiUrl = `${SOULGRAPH_API_URL}/v0/inference`;
+    console.log(`Creating new thread via inference endpoint: ${apiUrl}`);
+    const response = await axios.post(apiUrl, inferenceData);
     
     // Get the thread data from the response
-    const threadData = response.data;
+    const responseData = response.data;
+    const threadId = responseData.thread_id;
+    
+    if (!threadId) {
+      console.error('No thread_id returned from inference endpoint');
+      return NextResponse.json({ error: 'Failed to create thread' }, { status: 500 });
+    }
+    
+    console.log(`Created new thread with ID: ${threadId}`);
+    
+    // Fetch the complete thread data
+    const threadResponse = await axios.get(`${SOULGRAPH_API_URL}/v0/threads/${threadId}`);
+    const threadData = threadResponse.data;
     
     // Sync the thread data with Supabase for real-time updates
     if (threadData && threadData.id) {
@@ -134,7 +156,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Return the response from the SoulGraph API
+    // Return the thread data
     return NextResponse.json(threadData);
   } catch (error: unknown) {
     console.error('Error in POST threads API route:', error);
