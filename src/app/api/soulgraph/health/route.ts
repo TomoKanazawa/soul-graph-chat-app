@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
+import { getAuthHeader } from '@/utils/mockAuth';
 
 // Get the SoulGraph API URL from environment variables
 const SOULGRAPH_API_URL = process.env.API_URL || 'http://localhost:8000';
 
 export async function GET() {
   try {
-    // Forward the health check request to the SoulGraph API
+    // Forward the health check request to the SoulGraph API with auth header
     const response = await fetch(`${SOULGRAPH_API_URL}/v0/health`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeader(),
       },
     });
 

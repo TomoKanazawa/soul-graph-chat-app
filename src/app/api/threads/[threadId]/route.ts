@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabaseAdmin } from '../../supabase';
+import { getAuthHeader } from '@/utils/mockAuth';
 
 // Get the SoulGraph API URL from environment variables - use the same variable as other routes
 const SOULGRAPH_API_URL = process.env.API_URL || 'http://localhost:8000';
@@ -28,8 +29,12 @@ export async function GET(
     const apiUrl = `${SOULGRAPH_API_URL}/v0/threads/${threadId}`;
     console.log(`Making request to: ${apiUrl}`);
     
-    // Forward the request to the SoulGraph API
-    const response = await axios.get(apiUrl);
+    // Forward the request to the SoulGraph API with auth header
+    const response = await axios.get(apiUrl, {
+      headers: {
+        ...getAuthHeader()
+      }
+    });
     
     console.log(`Received response from SoulGraph API for thread ${threadId}`);
     
@@ -137,9 +142,12 @@ export async function DELETE(
     const apiUrl = `${SOULGRAPH_API_URL}/v0/threads/${threadId}`;
     console.log(`Making DELETE request to: ${apiUrl}`);
     
-    // Forward the delete request to the SoulGraph API
+    // Forward the delete request to the SoulGraph API with auth header
     const response = await axios.delete(apiUrl, {
-      params: user_id ? { user_id } : {}
+      params: user_id ? { user_id } : {},
+      headers: {
+        ...getAuthHeader()
+      }
     });
     
     console.log(`Received response from SoulGraph API for deleting thread ${threadId}`);

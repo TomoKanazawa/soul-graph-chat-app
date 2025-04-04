@@ -45,12 +45,26 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Authentication for Protected Endpoints
+
+The app includes a mock authentication system for testing protected endpoints in the SoulGraph API. This system:
+
+1. Generates a mock JWT token that mimics Supabase's authentication token structure
+2. Attaches the token to all API requests to the SoulGraph backend
+3. Allows testing of APIs protected with the `@login_required` decorator
+
+Key components:
+- `src/utils/mockAuth.ts` - Contains utilities to generate mock tokens
+- JWT tokens are automatically added to API requests in the route handlers
+- The secret key is configurable via the `NEXT_PUBLIC_MOCK_JWT_SECRET` environment variable
+
 ## Key Features
 
 - **Connection Status Indicator**: Shows whether the API is available
 - **Fixed Test User ID**: No login required for testing
 - **Streaming Mode**: Toggle to see responses appear in real-time
 - **Simple Interface**: Focus on testing functionality without distractions
+- **Mock Authentication**: For testing protected endpoints
 
 ## Configuration
 
@@ -62,12 +76,14 @@ The app integrates with these SoulGraph API endpoints:
 
 - `/v0/inference` - For sending and receiving chat messages
 - `/v0/health` - For checking API availability
+- `/v0/threads` - For managing conversation threads
 
 ## Troubleshooting
 
 - **API Connection Issues**: Ensure the Flask backend is running on port 8000
 - **Missing Responses**: Check the Flask server logs for errors
 - **Streaming Not Working**: Verify streaming is enabled on both frontend and backend
+- **Authentication Errors**: Check that the JWT token is being generated correctly and has the required claims
 
 ## Technologies
 
@@ -76,6 +92,7 @@ The app integrates with these SoulGraph API endpoints:
 - TypeScript
 - Tailwind CSS
 - Axios
+- JSON Web Tokens (JWT) for authentication testing
 
 ## Learn More
 

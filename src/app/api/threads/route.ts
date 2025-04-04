@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabaseAdmin } from '../supabase';
+import { getAuthHeader } from '@/utils/mockAuth';
 
 // Get the SoulGraph API URL from environment variables - use the same variable as other routes
 const SOULGRAPH_API_URL = process.env.API_URL || 'http://localhost:8000';
@@ -29,12 +30,15 @@ export async function GET(request: NextRequest) {
     const apiUrl = `${SOULGRAPH_API_URL}/v0/threads`;
     console.log(`Making request to: ${apiUrl}`);
 
-    // Forward the request to the SoulGraph API
+    // Forward the request to the SoulGraph API with auth header
     const response = await axios.get(apiUrl, {
       params: {
         user_id,
         limit,
         offset
+      },
+      headers: {
+        ...getAuthHeader()
       }
     });
 
@@ -111,10 +115,14 @@ export async function POST(request: NextRequest) {
       stream: false
     };
     
-    // Forward the request to the SoulGraph inference API
+    // Forward the request to the SoulGraph inference API with auth header
     const apiUrl = `${SOULGRAPH_API_URL}/v0/inference`;
     console.log(`Creating new thread via inference endpoint: ${apiUrl}`);
-    const response = await axios.post(apiUrl, inferenceData);
+    const response = await axios.post(apiUrl, inferenceData, {
+      headers: {
+        ...getAuthHeader()
+      }
+    });
     
     // Get the thread data from the response
     const responseData = response.data;

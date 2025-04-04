@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
+    "@types/jsonwebtoken": "^9.0.9",
     "axios": "^1.8.1",
     "dotenv": "^16.4.7",
+    "jsonwebtoken": "^9.0.2",
     "next": "15.2.1",
     "openai": "^4.86.2",
     "react": "^19.0.0",

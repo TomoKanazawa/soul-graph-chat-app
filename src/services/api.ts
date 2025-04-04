@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { InferenceRequest, InferenceResponse, ModelType, ChatThread } from '@/types';
+import { getAuthHeader } from '@/utils/mockAuth';
 
 // API endpoints
 const SOULGRAPH_API_URL = '/api/soulgraph';
@@ -14,7 +15,6 @@ export const api = {
         message,
         user_id: TEST_USER_ID,
         thread_id: threadId,
-        new_thread: !threadId,
         system_prompt: 'You are a helpful assistant.',
         stream: false,
         model

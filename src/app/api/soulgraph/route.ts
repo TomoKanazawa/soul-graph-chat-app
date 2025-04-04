@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '../supabase';
+import { getAuthHeader } from '@/utils/mockAuth';
 
 // Get the SoulGraph API URL from environment variables
 const SOULGRAPH_API_URL = process.env.API_URL || 'http://localhost:8000';
@@ -9,11 +10,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { stream, thread_id } = body;
 
-    // Forward the request to the SoulGraph API
+    // Forward the request to the SoulGraph API with auth header
     const response = await fetch(`${SOULGRAPH_API_URL}/v0/inference`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeader(),
       },
       body: JSON.stringify(body),
     });
