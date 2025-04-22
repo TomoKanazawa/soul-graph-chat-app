@@ -24,6 +24,7 @@ export interface InferenceRequest {
   system_prompt?: string;
   stream?: boolean;
   model?: ModelType;
+  training?: boolean;
 }
 
 export interface InferenceResponse {

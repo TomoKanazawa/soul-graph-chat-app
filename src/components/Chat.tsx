@@ -24,6 +24,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
   const [receivedChunks, setReceivedChunks] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState<boolean>(false);
   const [selectedModel, setSelectedModel] = useState<ModelType>('soulgraph');
+  const [trainMode, setTrainMode] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const assistantMessageRef = useRef<Message | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -294,90 +295,78 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
   // Handle sending a message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!input.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input,
-      timestamp: new Date(),
-    };
-
-    // Add user message to chat
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
+    
     setIsLoading(true);
     setError(null);
-    setIsTyping(true);
+    setStreamingStatus('');
+    
+    // Add user message
+    const userMessage: Message = {
+      role: 'user',
+      content: input,
+      timestamp: new Date()
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    
+    // Reset streaming UI state
+    setReceivedChunks([]);
+    setChunkCount(0);
     currentResponseRef.current = '';
     assistantMessageRef.current = null;
-
+    
     try {
-      // If we have a threadId, update Supabase directly with the user message
-      // This will trigger real-time updates for other clients
-      if (threadId) {
-        addDebugInfo(`Updating Supabase with user message...`);
-        try {
-          // First get the current thread to get existing messages
-          const { data: threadData, error: fetchError } = await supabase
-            .from('chat_threads')
-            .select('id, title, messages, updated_at')
-            .eq('id', threadId)
-            .maybeSingle();
-            
-          if (fetchError) {
-            console.error('Error fetching thread for update:', fetchError);
-            addDebugInfo(`Error fetching thread: ${fetchError.message || JSON.stringify(fetchError)}`);
-          } else if (threadData) {
-            // Update the thread with the new user message
-            const updatedMessages = [...(threadData.messages || []), userMessage];
-            addDebugInfo(`Updating thread with ${updatedMessages.length} messages`);
-            
-            const { error: updateError } = await supabase
-              .from('chat_threads')
-              .update({
-                messages: updatedMessages,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', threadId);
-              
-            if (updateError) {
-              console.error('Error updating thread with user message:', updateError);
-              addDebugInfo(`Error updating thread: ${updateError.message || JSON.stringify(updateError)}`);
-            } else {
-              console.log('Thread updated with user message, should trigger real-time update');
-              addDebugInfo(`Thread updated successfully, real-time update should trigger`);
-            }
-          } else {
-            addDebugInfo(`Thread not found in Supabase: ${threadId}`);
-          }
-        } catch (supabaseError) {
-          console.error('Exception in Supabase update:', supabaseError);
-          addDebugInfo(`Supabase update exception: ${supabaseError instanceof Error ? supabaseError.message : String(supabaseError)}`);
-        }
-      }
-
+      // Streaming response
       if (useStreaming) {
-        addDebugInfo(`Starting streaming request with thread ID: ${threadId || 'new'} using model: ${selectedModel}`);
         setStreamingStatus('Connecting...');
         
-        // Use API with streaming
-        await api.sendMessageStream(
-          input,
-          handleStreamChunk,
-          threadId,
-          selectedModel
-        );
-      } else {
-        // Use non-streaming API
-        const response = await api.sendMessage(input, threadId, selectedModel);
+        try {
+          await api.sendMessageStream(
+            userMessage.content,
+            handleStreamChunk,
+            threadId,
+            selectedModel,
+            trainMode
+          );
+        } catch (streamError) {
+          console.error('Streaming error:', streamError);
+          setError(`Error: ${streamError instanceof Error ? streamError.message : String(streamError)}`);
+          
+          // If streaming fails, try to fall back to non-streaming API
+          setStreamingStatus('Streaming failed, falling back to standard request...');
+          
+          const response = await api.sendMessage(userMessage.content, threadId, selectedModel, trainMode);
+          
+          // If we don't have a thread ID yet, but the response contains one
+          if (!threadId && response.thread_id && onThreadCreated) {
+            onThreadCreated(response.thread_id);
+          }
+          
+          // Add assistant response
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: response.response,
+            timestamp: new Date()
+          };
+          
+          setMessages(prev => [...prev, assistantMessage]);
+        }
+      } 
+      // Non-streaming response
+      else {
+        setStreamingStatus('Processing...');
         
-        // Update thread ID if it's a new thread
+        const response = await api.sendMessage(userMessage.content, threadId, selectedModel, trainMode);
+        
+        // If we don't have a thread ID yet, but the response contains one
         if (!threadId && response.thread_id && onThreadCreated) {
           onThreadCreated(response.thread_id);
         }
         
-        // Add assistant response to chat
+        // Add assistant response
         const assistantMessage: Message = {
           role: 'assistant',
           content: response.response,
@@ -385,25 +374,13 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
         };
         
         setMessages(prev => [...prev, assistantMessage]);
-        setIsLoading(false);
       }
-    } catch (err) {
-      console.error('Error in chat:', err);
-      setError('Failed to send message. Please try again.');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setError(`Failed to send message: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
       setIsLoading(false);
-      
-      // Remove the placeholder message if using streaming
-      if (useStreaming) {
-        setMessages(prev => {
-          if (prev.length > 0 && prev[prev.length - 1].role === 'assistant' && prev[prev.length - 1].content === '') {
-            return prev.slice(0, -1);
-          }
-          return prev;
-        });
-      }
-      
-      // Reset the assistant message ref
-      assistantMessageRef.current = null;
+      setStreamingStatus('');
     }
   };
 
@@ -444,6 +421,21 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
               />
               <label 
                 className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${useStreaming ? 'bg-blue-500' : 'bg-gray-300'}`}
+              ></label>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <label className="font-medium">Train Mode</label>
+            <div className="relative inline-block w-10 mr-2 align-middle select-none">
+              <input 
+                type="checkbox" 
+                checked={trainMode}
+                onChange={() => setTrainMode(!trainMode)}
+                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+              />
+              <label 
+                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${trainMode ? 'bg-green-500' : 'bg-gray-300'}`}
               ></label>
             </div>
           </div>
@@ -682,6 +674,7 @@ export default function Chat({ threadId, onThreadCreated }: ChatProps) {
               <p><strong>Real-time Channel:</strong> {channelRef.current ? 'Active' : 'Not connected'}</p>
               <p><strong>Model:</strong> {selectedModel}</p>
               <p><strong>Streaming:</strong> {useStreaming ? 'Enabled' : 'Disabled'}</p>
+              <p><strong>Train Mode:</strong> {trainMode ? 'Enabled' : 'Disabled'}</p>
             </div>
             
             <div className="max-h-40 overflow-y-auto space-y-1 border-t border-gray-200 dark:border-gray-700 pt-2">

@@ -26,7 +26,7 @@ export async function GET(
   }
 
   try {
-    const apiUrl = `${SOULGRAPH_API_URL}/v0/threads/${threadId}`;
+    const apiUrl = `${SOULGRAPH_API_URL}/v1/threads/${threadId}`;
     console.log(`Making request to: ${apiUrl}`);
     
     // Forward the request to the SoulGraph API with auth header
@@ -139,7 +139,7 @@ export async function DELETE(
     const url = new URL(request.url);
     const user_id = url.searchParams.get('user_id');
     
-    const apiUrl = `${SOULGRAPH_API_URL}/v0/threads/${threadId}`;
+    const apiUrl = `${SOULGRAPH_API_URL}/v1/threads/${threadId}`;
     console.log(`Making DELETE request to: ${apiUrl}`);
     
     // Forward the delete request to the SoulGraph API with auth header

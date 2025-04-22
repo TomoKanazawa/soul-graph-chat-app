@@ -9,7 +9,7 @@ const TEST_USER_ID = 'test-user-123'; // Fixed test user ID
 
 export const api = {
   // Send a message to the API (SoulGraph)
-  sendMessage: async (message: string, threadId?: string, model: ModelType = 'soulgraph'): Promise<InferenceResponse> => {
+  sendMessage: async (message: string, threadId?: string, model: ModelType = 'soulgraph', trainMode: boolean = false): Promise<InferenceResponse> => {
     try {
       const request: InferenceRequest = {
         message,
@@ -17,7 +17,8 @@ export const api = {
         thread_id: threadId,
         system_prompt: 'You are a helpful assistant.',
         stream: false,
-        model
+        model,
+        training: trainMode
       };
       
       const response = await axios.post<InferenceResponse>(SOULGRAPH_API_URL, request);
@@ -33,7 +34,8 @@ export const api = {
     message: string, 
     onChunk: (chunk: string, isComplete: boolean, threadId?: string, rawChunk?: string) => void,
     threadId?: string,
-    model: ModelType = 'soulgraph'
+    model: ModelType = 'soulgraph',
+    trainMode: boolean = false
   ): Promise<void> => {
     try {
       const request: InferenceRequest = {
@@ -43,7 +45,8 @@ export const api = {
         new_thread: !threadId,
         system_prompt: 'You are a helpful assistant.',
         stream: true,
-        model
+        model,
+        training: trainMode
       };
 
       console.log(`Sending streaming request to ${model} API:`, request);
@@ -142,17 +145,6 @@ export const api = {
     } catch (error) {
       console.error('Error in streaming message:', error);
       throw error;
-    }
-  },
-
-  // Health check endpoint
-  healthCheck: async (): Promise<boolean> => {
-    try {
-      const response = await axios.get(`${SOULGRAPH_API_URL}/health`);
-      return response.status === 200;
-    } catch (error) {
-      console.error('Health check failed:', error);
-      return false;
     }
   },
 

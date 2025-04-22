@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     const { stream, thread_id } = body;
 
     // Forward the request to the SoulGraph API with auth header
-    const response = await fetch(`${SOULGRAPH_API_URL}/v0/inference`, {
+    const response = await fetch(`${SOULGRAPH_API_URL}/v1/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
                 // If this is the final message (done: true), update Supabase
                 if (data.done && threadId) {
                   // Fetch the complete thread data
-                  const threadResponse = await fetch(`${SOULGRAPH_API_URL}/v0/threads/${threadId}`);
+                  const threadResponse = await fetch(`${SOULGRAPH_API_URL}/v1/threads/${threadId}`);
                   if (threadResponse.ok) {
                     const threadData = await threadResponse.json();
                     
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
       if (data.thread_id) {
         try {
           // Fetch the complete thread data
-          const threadResponse = await fetch(`${SOULGRAPH_API_URL}/v0/threads/${data.thread_id}`);
+          const threadResponse = await fetch(`${SOULGRAPH_API_URL}/v1/threads/${data.thread_id}`);
           if (threadResponse.ok) {
             const threadData = await threadResponse.json();
             

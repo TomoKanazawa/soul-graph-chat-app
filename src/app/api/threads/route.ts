@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Construct the API URL
-    const apiUrl = `${SOULGRAPH_API_URL}/v0/threads`;
+    const apiUrl = `${SOULGRAPH_API_URL}/v1/threads`;
     console.log(`Making request to: ${apiUrl}`);
 
     // Forward the request to the SoulGraph API with auth header
@@ -106,8 +106,8 @@ export async function POST(request: NextRequest) {
     // Parse the request body
     const body = await request.json();
     
-    // Prepare the data for the inference endpoint
-    const inferenceData = {
+    // Prepare the data for the chat endpoint
+    const chatData = {
       message: body.message || "New conversation",
       user_id: body.user_id,
       new_thread: true,
@@ -115,10 +115,10 @@ export async function POST(request: NextRequest) {
       stream: false
     };
     
-    // Forward the request to the SoulGraph inference API with auth header
-    const apiUrl = `${SOULGRAPH_API_URL}/v0/inference`;
-    console.log(`Creating new thread via inference endpoint: ${apiUrl}`);
-    const response = await axios.post(apiUrl, inferenceData, {
+    // Forward the request to the SoulGraph chat API with auth header
+    const apiUrl = `${SOULGRAPH_API_URL}/v1/chat`;
+    console.log(`Creating new thread via chat endpoint: ${apiUrl}`);
+    const response = await axios.post(apiUrl, chatData, {
       headers: {
         ...getAuthHeader()
       }
@@ -129,14 +129,14 @@ export async function POST(request: NextRequest) {
     const threadId = responseData.thread_id;
     
     if (!threadId) {
-      console.error('No thread_id returned from inference endpoint');
+      console.error('No thread_id returned from chat endpoint');
       return NextResponse.json({ error: 'Failed to create thread' }, { status: 500 });
     }
     
     console.log(`Created new thread with ID: ${threadId}`);
     
     // Fetch the complete thread data
-    const threadResponse = await axios.get(`${SOULGRAPH_API_URL}/v0/threads/${threadId}`);
+    const threadResponse = await axios.get(`${SOULGRAPH_API_URL}/v1/threads/${threadId}`);
     const threadData = threadResponse.data;
     
     // Sync the thread data with Supabase for real-time updates
